@@ -1,36 +1,40 @@
-import logging
+from flask import Flask, request
+import requests
 import os
-from telegram.ext import Updater, CommandHandler
 
-# Lese Umgebungsvariablen von Railway
+app = Flask(__name__)
+
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-CHAT_ID = os.environ.get("CHAT_ID")
+TELEGRAM_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-# Logging (hilfreich für Fehlersuche)
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+@app.route('/')
+def home():
+    return '✅ Bot läuft!'
 
-# /start-Befehl
-def start(update, context):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="✅ Bot läuft!")
+@app.route(f'/{BOT_TOKEN}', methods=['POST'])
+def telegram_webhook():
+    data = request.get_json()
 
-# Funktion zum Senden eines Alerts
-def alert(context):
-    context.bot.send_message(chat_id=CHAT_ID, text="📈 Token-Sale erkannt!")
+    if 'message' in data:
+        chat_id = data['message']['chat']['id']
+        text = data['message'].get('text', '')
 
-# Manuelles Auslösen eines Alerts per /alert
-def trigger_alert(update, context):
-    alert(context)
+        if text == "/start":
+            send_message(chat_id, "👋 Willkommen! Ich bin dein SalesAlert Bot.")
+        elif text == "/alert":
+            send_message(chat_id, "📈 Token-Sale erkannt!")
+        else:
+            send_message(chat_id, "✅ Deine Chat-ID: " + str(chat_id))
 
-# Hauptfunktion
-def main():
-    updater = Updater(token=BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
+    return '', 200
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("alert", trigger_alert))
-
-    updater.start_polling()
-    updater.idle()
+def send_message(chat_id, text):
+    url = f"{TELEGRAM_API_URL}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": text
+    }
+    requests.post(url, json=payload)
 
 if __name__ == '__main__':
-    main()
+    app.run(host='0.0.0.0', port=8080)
